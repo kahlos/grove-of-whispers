@@ -7,170 +7,224 @@ import random
 import time
 import textwrap # For nicely formatting long description text
 
-# (Ensure these imports are at the top of your file)
 
 # -----------------------------------------------------------------------------
-# Block 2: Game Data
-# (This section holds the world map. It can be expanded significantly
-# or potentially moved to a separate data file later for complex games.)
+# Block 2: Data Pools for Dynamic Generation
+# (Lists of words/phrases to inject variety into descriptions and events)
+# -----------------------------------------------------------------------------
+
+# Descriptive words
+pool_adjectives_calm = ["peaceful", "serene", "sun-dappled", "quiet", "still", "tranquil", "hushed"]
+pool_adjectives_mysterious = ["mysterious", "enigmatic", "shadowy", "misty", "ancient-feeling", "whispering"]
+pool_adjectives_nature = ["verdant", "lush", "overgrown", "wild", "moss-covered", "flower-dotted"]
+
+# Sensory details
+pool_scents_forest = ["pine needles", "damp earth", "moss", "cool air", "flowering blossoms", "wet stone"]
+pool_scents_water = ["clean water", "river mud", "wet rocks", "ozone", "water lilies"]
+pool_sounds_forest = ["rustling leaves", "distant bird calls", "buzzing insects", "a snapping twig", "deep silence", "wind sighing"]
+pool_sounds_water = ["gurgling water", "a gentle lapping", "a distant cascade", "croaking frogs", "splashing"]
+
+# Minor features/observations
+pool_minor_sights_forest = [
+    "a vibrant patch of unusual fungus on a log",
+    "an intricate spiderweb glistening with dew",
+    "an unusually shaped fallen leaf",
+    "a shy forest creature (like a squirrel or deer) watching briefly before darting away",
+    "sunlight making shifting patterns on the ground",
+    "a curiously twisted branch on an old tree",
+    "animal tracks in the soft earth",
+]
+pool_minor_sights_water = [
+    "the reflection of the sky on the water's surface",
+    "smooth, colourful pebbles beneath the surface",
+    "a small fish darting into hiding",
+    "water striders dancing on the surface",
+    "sunlight sparkling on ripples",
+]
+
+# Possible flavour events (location independent, or make location specific lists)
+pool_flavor_events = [
+    "A sudden gust of wind rustles everything around you, then fades.",
+    "You hear a distinct, clear bird call, then silence.",
+    "A strangely coloured butterfly flits past erratically.",
+    "For a fleeting moment, you smell an unidentifiable sweet fragrance.",
+    "The quality of light changes subtly, as if a cloud passed far overhead.",
+    "You feel a brief, tingling sensation, like static electricity in the air.",
+]
+
+# Dynamic action results/messages
+pool_breathe_insights = [
+    "With the breath, a layer of mental fog seems to lift.",
+    "You feel a little more grounded, more present in your body.",
+    "The breath anchors you to this exact moment.",
+    "A sense of simple okay-ness arises with the exhale.",
+]
+pool_listen_insights = [
+    "The world seems richer, filled with layers of subtle sound.",
+    "You distinguish a sound you hadn't consciously registered before.",
+    "The silence between the sounds becomes noticeable and peaceful.",
+    "Focusing on sound helps quiet the internal chatter for a moment.",
+]
+pool_feel_insights = [
+    "The physical sensation brings you sharply into the present.",
+    "Grounding through touch reduces the feeling of being adrift.",
+    "You appreciate the simple reality of the physical world.",
+]
+
+# --- Dictionary to easily access pools by name ---
+# (Makes referencing pools in location data cleaner)
+all_data_pools = {
+    "adj_calm": pool_adjectives_calm,
+    "adj_mysterious": pool_adjectives_mysterious,
+    "adj_nature": pool_adjectives_nature,
+    "scent_forest": pool_scents_forest,
+    "scent_water": pool_scents_water,
+    "sound_forest": pool_sounds_forest,
+    "sound_water": pool_sounds_water,
+    "sight_forest": pool_minor_sights_forest,
+    "sight_water": pool_minor_sights_water,
+    "events": pool_flavor_events,
+    "breathe_insight": pool_breathe_insights,
+    "listen_insight": pool_listen_insights,
+    "feel_insight": pool_feel_insights,
+}
+# -----------------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# Block 3: Modified Game Data (Using Templates)
 # -----------------------------------------------------------------------------
 locations = {
-    # --- Your existing locations dictionary goes here ---
-    # 'clearing': { ... },
-    # 'dark_woods_entrance': { ... },
-    # etc.
-    # ...
-# --- Add more locations here ---
     'clearing': {
-        'description': "You stand at the edge of a sun-dappled clearing. Ancient stones covered in moss form a rough circle in the center. The air hums with the sound of bees, and the scent of wildflowers is {fragrance}. A familiar restlessness urges you to keep moving, to find the 'end'.",
-        'dynamic_intro': [
+        'description_template': "You stand in a {adj} clearing. Ancient stones covered in moss form a rough circle in the center. The air is {adj_nature} and carries the scent of {scent}. You notice {sight}. A familiar restlessness urges you to keep moving.",
+        'description_pools': { # Links placeholders to pool names in all_data_pools
+            'adj': 'adj_calm',
+            'adj_nature': ['still', 'warm', 'gentle'], # Can define inline lists too
+            'scent': ['wildflowers', 'sun-warmed grass'] + pool_scents_forest, # Can combine pools
+            'sight': pool_minor_sights_forest + ["bees buzzing industriously around flowers"]
+        },
+        'dynamic_intro': [ # Keep these too for variety
             "A gentle breeze rustles the leaves above.",
             "Sunlight warms your face.",
             "The quiet feels vast and deep.",
-            "A distant bird calls out a short, clear note."
         ],
-        'fragrance_options': ["strong", "delicate", "sweet", "faint but clear"], # Randomly chosen detail
+        'event_chance': 0.3, # 30% chance of a flavour event here
         'exits': {'n': 'dark_woods_entrance', 'e': 'gentle_slope_base'},
         'actions': {
-            's': { # Sit on stone
-                'text': "You settle onto the large, mossy stone. It's cool and damp beneath your hand, surprisingly soft. You focus on the feeling, the texture. The urge to rush quiets down for a moment. Looking closely at the moss, you see tiny droplets of dew sparkling like jewels, and a ladybug diligently exploring its miniature green world. The world feels a little more real, more solid.",
-                'reveal': None,
-                'message': "A moment of stillness."
+            's': {
+                'text': "You settle onto the large, mossy stone. It's cool and damp beneath your hand, surprisingly soft. Focusing on the texture, the urge to rush quiets down. You notice tiny details - dew drops, a ladybug.",
+                'message': "A moment of stillness grounds you."
             },
-            'b': { # Breathe
-                'text': "You stand still. You close your eyes (or soften your gaze) and take a slow breath in... and out... letting the tension go. Another breath... feeling your feet on the earth... And one more... noticing the air on your skin. The buzzing urgency in your chest softens. When you open your eyes, the sunlight seems warmer, the colours brighter.",
-                'reveal': {'w': 'hidden_track_start'}, # Reveals the hidden West track
-                'message': "Clarity sharpens slightly. You notice a potential path you missed before."
+            'b': {
+                'text': "You stand still, taking a slow breath in... and out... Another... And one more... The inner chatter softens slightly.",
+                'possible_messages': 'breathe_insight', # Reference a pool for message
+                 # --- Dynamic Reveal Example ---
+                'possible_reveals': [ # Choose ONE potential reveal effect
+                    {'reveal': {'w': 'hidden_track_start'}, 'message': "Clarity sharpens. You spot a hidden path!"},
+                    {'reveal': None, 'message': "You feel calmer, but see no new paths."},
+                    # Add more potential outcomes here
+                ]
             },
-            'l': { # Listen
-                'text': "You close your eyes and listen. The buzzing of bees nearby, the rustle of leaves in the breeze, the distant bird call... and beneath it all, a deeper silence. You focus on just the sounds, letting them wash over you without needing to name them.",
-                'reveal': None,
-                'message': "The world seems fuller, more layered."
-             }
+            'l': {
+                'text': "You pause, closing your eyes to simply listen. The {sound}... and beneath it, a deeper quiet.",
+                'description_pools': {'sound': pool_sounds_forest}, # Template within an action!
+                'possible_messages': 'listen_insight',
+            }
         }
     },
     'dark_woods_entrance': {
-        'description': "The trees here grow closer together, casting deep shadows. The air is cooler. The path ahead [N] looks dark and uncertain. Moss hangs heavy from branches. The clearing is visible behind you [S].",
-        'dynamic_intro': [
-            "A twig snaps nearby.",
-            "The smell of damp earth is strong.",
-            "A chill crawls up your spine for a moment, then fades."
-            ],
-        'exits': {'s': 'clearing', 'n': 'deep_woods'}, # 'n' leads deeper
+        'description_template': "The trees grow close here, casting {adj} shadows. The air is cooler, smelling of {scent}. The path ahead [N] looks uncertain. Moss hangs heavy. You see {sight} nearby. The clearing [S] is behind you.",
+        'description_pools': {
+             'adj': pool_adjectives_mysterious,
+             'scent': pool_scents_forest,
+             'sight': pool_minor_sights_forest,
+        },
+        'dynamic_intro': ["A twig snaps nearby.", "An owl hoots softly, unseen.", "A chill settles briefly."],
+        'event_chance': 0.2,
+        'exits': {'s': 'clearing', 'n': 'deep_woods'},
         'actions': {
-             'f': { # Feel
-                 'text': "You reach out and touch the moss hanging from a low branch. It's surprisingly cold, wet, and slightly rough. You feel the dampness seeping into your fingertips, anchoring you to this spot.",
-                 'reveal': None,
-                 'message': "Grounded in the present sensation."
+             'f': { # Feel Moss
+                 'text': "You reach out to the moss on a branch. It's {texture}, {temperature}. Focusing on the sensation anchors you.",
+                 'description_pools': {
+                    'texture': ['damp', 'surprisingly rough', 'cool and yielding'],
+                    'temperature': ['cold', 'cool', 'surprisingly dry in one patch']
+                 },
+                 'possible_messages': 'feel_insight',
              },
-            'b': {
-                 'text': "You take a conscious breath, noticing the cool air entering your nostrils and the slightly warmer air leaving. Despite the shadows, a sense of calm holds steady.",
-                 'reveal': None,
-                 'message': "Steady."
-            }
-        }
-    },
-    'gentle_slope_base': {
-        'description': "A wide, grassy slope rises gently to the [E]ast. Small, colourful flowers dot the hillside. The sun feels warm here. You can hear the faint sound of running water from further up. The clearing is back to the [W]est.",
-        'exits': {'w': 'clearing', 'e': 'slope_top'}, # 'e' goes up
-        'actions': {
-             'l': { # Listen
-                'text': "You focus on the sound of running water. It seems to be coming from over the crest of the slope [E]. It's a gentle, soothing sound.",
-                'reveal': None,
-                'message': "Curiosity piqued by the sound."
-             }
-        }
-    },
-    'hidden_track_start': {
-        'description': "Pushing aside a flowering bush reveals a faint, narrow track leading [W]est into a denser part of the woods, seemingly less travelled. The clearing is back to the [E]ast.",
-        'dynamic_intro': ["The air here feels still and expectant.", "It smells of crushed leaves."],
-        'exits': {'e': 'clearing', 'w': 'ancient_tree'}, # 'w' follows track
-        'actions': {
-             'f': { # Feel ground
-                'text': "You kneel and feel the path. It's soft earth, packed down slightly, but not heavily used. You notice the imprint of a deer hoof.",
-                'reveal': None,
-                'message': "A sense of connection to the natural world."
-             }
-        }
-    },
-    'deep_woods': {
-        'description': "You are deeper in the woods. It's much darker. It's easy to feel lost. Paths seem to lead everywhere and nowhere. Maybe taking a moment to center yourself would help? The way back [S] is faintly visible.",
-        'exits': {'s':'dark_woods_entrance'},
-        'actions': {
              'b': {
-                 'text': "Breathing slowly, you focus on the feeling of your feet on the ground. The panic of being lost subsides slightly. As your eyes adjust, one path to the [N] seems slightly more defined than the others.",
-                 'reveal': {'n': 'quiet_stream'}, # Only revealed by breathing
-                 'message': "With calm comes clarity."
-            },
-             'o': { # Observe Thoughts - Example
-                 'text': "Thoughts like 'I'm lost!', 'Which way is right?', 'Did I make a mistake?' bubble up. You acknowledge them without judgement, like watching clouds pass in the sky. They are just thoughts, not commands.",
-                 'reveal': None,
-                 'message': "Watching thoughts instead of being swept away by them."
-            }
+                 'text': "Breathing consciously, you notice the cool air. Despite the shadows, a measure of calm returns.",
+                 'possible_messages': 'breathe_insight',
+                 # Could add possible reveal for a faint side path sometimes?
+             }
         }
     },
-    'slope_top': {
-        'description': "You reach the top of the slope. Before you lies a beautiful vista overlooking a valley [E]. A small, clear spring bubbles up from rocks here [Examine spring], feeding a stream that flows down the hill. The path back down is [W].",
-         'exits': {'w':'gentle_slope_base', 'e': 'valley_view'}, # 'e' not fully implemented yet
+     'deep_woods': {
+        'description_template': "Deeper in the woods. It's much {adj_light}. It feels {adj_mood} and easy to get lost. Paths seem indistinct. The way back [S] is faintly visible.",
+         'description_pools': {
+            'adj_light': ['darker', 'dimmer', 'shadow-filled'],
+            'adj_mood': ['confusing', 'disorienting', 'overgrown', 'suffocatingly quiet'],
+         },
+         'event_chance': 0.4, # Higher chance of unsettling events?
+         'exits': {'s':'dark_woods_entrance'},
          'actions': {
-             'examine spring': { # Multi-word action example
-                 'text': "You kneel by the spring. The water is crystal clear, bubbling gently over smooth pebbles. Watching the water flow is mesmerizing and calming.",
-                 'reveal': None,
-                 'message': "Simple beauty."
-             }
-         }
-    },
-    'ancient_tree': {
-        'description': "The narrow track ends at the base of an enormous, ancient tree. Its bark is deeply furrowed, and its branches reach high above. It feels wise and peaceful here. The track leads back [E].",
-         'exits': {'e':'hidden_track_start'},
-         'actions': {
-             'touch tree': {
-                 'text': "You place your hand on the rough, sturdy bark. It feels solid and ancient, radiating a quiet strength. You feel a connection to its long, slow existence.",
-                 'reveal': None,
-                 'message': "A feeling of deep time and resilience."
-             },
-             's': {
-                 'text': "You sit at the base of the tree, leaning against its trunk. The peace here is profound. You simply watch the light filtering through the leaves above.",
-                 'reveal': None,
-                 'message': "Resting in presence."
-             }
-         }
+             'b': {
+                 'text': "Focusing on your breath... in... out... The rising panic softens. You feel your feet firmly on the ground.",
+                 'possible_messages': 'breathe_insight',
+                 # Conditional Reveal - Increased chance if calm/focused? (Needs state tracking later)
+                 'possible_reveals': [
+                     {'reveal': {'n': 'quiet_stream'}, 'message': "As calm settles, one path [N] seems slightly clearer."},
+                     {'reveal': None, 'message': "You feel centered, but the paths remain confusing."},
+                 ],
+            },
+             'o': {
+                 'text': "Acknowledging thoughts ('I'm lost!', 'Which way?') without judgment, like watching clouds. They are just thoughts.",
+                 'message': "Observing thoughts creates distance from them."
+            }
+        }
      },
      'quiet_stream': {
-        'description': "Following the clearer path led you to a small, quiet stream flowing [E]. The water chuckles over stones. Sunlight filters through the canopy here, making it less gloomy. The path back [S] is clear.",
-         'exits': {'s':'deep_woods', 'e':'stream_bend'}, # 'e' not implemented yet
+         'description_template': "You've found a small, {adj} stream flowing [E]. The water {sound} over {stones}. Sunlight filters through, making it less gloomy. Back [S] is the darker woods.",
+         'description_pools': {
+             'adj': ['quiet', 'clear', 'peaceful', 'chuckling'],
+             'sound': pool_sounds_water,
+             'stones': ['smooth pebbles', 'mossy rocks', 'flat stones']
+         },
+         'event_chance': 0.1,
+         'exits': {'s': 'deep_woods', 'e': 'stream_bend'},
          'actions': {
-             # Can add actions like Listen ('L'), Feel Water ('Feel water')
-             'l': {
-                 'text': "You pause and listen only to the stream. The soft gurgling, the occasional splash... it seems to wash away distracting thoughts.",
-                 'reveal': None,
-                 'message': "Lost in the sound."
+            'l': {
+                 'text': "You listen only to the stream. The gentle sounds seem to wash away distraction.",
+                 'possible_messages': 'listen_insight',
              },
-              'feel water': {
-                 'text': "You dip your fingers into the stream. The water is cool and flows smoothly over your skin. It feels refreshing and very real.",
-                 'reveal': None,
-                 'message': "A moment of clear sensation."
+             'feel water': {
+                 'text': "Dipping your fingers in, the water is {temperature}. It feels {sensation}.",
+                  'description_pools': {
+                      'temperature': ['cool', 'cold', 'surprisingly mild'],
+                      'sensation': ['refreshing', 'very real', 'soothing']
+                  },
+                 'possible_messages': 'feel_insight',
              }
          }
      },
-     # --- Placeholder Endings/Future Areas ---
-      'valley_view': {
-        'description': "The view is breathtaking. Miles of forest stretch out below, bathed in gentle sunlight. You feel a sense of expansive peace wash over you. Maybe the journey wasn't about *reaching* an 'end', but about *how* you walked the path?\n\n[[ You have found a moment of clarity. Thank you for playing! Type 'quit' to exit. ]]",
-        'exits': {},
-        'actions': {}
-     },
-      'stream_bend': {
-        'description': "The stream bends around a large, mossy rock formation here. The gentle sounds and the constant, steady flow of water bring a sense of calm focus. Perhaps true presence is found not by searching, but by noticing these simple moments, wherever you are?\n\n[[ You have found a moment of flow. Thank you for playing! Type 'quit' to exit. ]]",
-        'exits': {},
-        'actions': {}
-     },
+
+    # --- Add more dynamic locations using templates ---
+    # 'gentle_slope_base', 'slope_top', 'hidden_track_start', 'ancient_tree'
+    # need conversion to the template format as well.
+
+    # --- Keep Endings Static For Now ---
+    'valley_view': {
+        'description': "The view is breathtaking... [[ You have found a moment of clarity. Thank you for playing! Type 'quit' to exit. ]]",
+        'exits': {}, 'actions': {} # Minimal data for ending locations
+    },
+    'stream_bend': {
+        'description': "The stream bends here... [[ You have found a moment of flow. Thank you for playing! Type 'quit' to exit. ]]",
+        'exits': {}, 'actions': {}
+    },
 }
-
 # -----------------------------------------------------------------------------
 
 
 # -----------------------------------------------------------------------------
-# Block 3: Game State Variables
+# Block 4: Game State Variables
 # (These track the player's current situation.)
 # -----------------------------------------------------------------------------
 current_location_id = 'clearing' # Start the player in the clearing
@@ -183,7 +237,7 @@ revealed_exits_this_turn = {} # Track temporary reveals
 
 
 # -----------------------------------------------------------------------------
-# Block 4: Helper Functions
+# Block 5: Helper Functions
 # (Functions for text formatting, displaying location info, prompts,
 # and the new game introduction.)
 # -----------------------------------------------------------------------------
@@ -236,40 +290,66 @@ def introduction():
     input("Press Enter when you are ready to begin...")
 
 
+# (Handles dynamic description generation and event triggering)
 def display_location(location_id):
-    """Gets location data, formats description, and prints it."""
+    """Gets location data, generates dynamic description, and prints it."""
     global revealed_exits_this_turn
-    revealed_exits_this_turn = {} # Reset revealed exits when entering a new location
+    revealed_exits_this_turn = {} # Reset on entering location
 
     location = locations.get(location_id)
     if not location:
-        print(wrap_text("Error: Location not found! ID: " + location_id))
+        print(wrap_text(f"Error: Location not found! ID: '{location_id}'"))
+        # Consider adding a fallback, e.g., move player to start or safe default
         return
 
-    # Print dynamic intro phrase if available
+    # --- Dynamic Intro ---
     if location.get('dynamic_intro'):
-        # Use a slightly shorter, varied pause for dynamic intros
         print(wrap_text(f"\n{random.choice(location['dynamic_intro'])}"))
         time.sleep(random.uniform(0.6, 1.2))
 
-    # Prepare and print main description, inserting random elements if needed
-    desc = location['description']
+    # --- Description Generation ---
+    template = location.get('description_template', location.get('description')) # Fallback to static desc
+    if not template:
+        print(wrap_text("You are somewhere... but the details are hazy.")) # Error fallback
+        return
+
+    format_dict = {}
+    pools_to_use = location.get('description_pools', {})
+
+    # Populate format_dict with random choices from specified pools
+    for placeholder, pool_ref in pools_to_use.items():
+        chosen_value = ""
+        if isinstance(pool_ref, str) and pool_ref in all_data_pools:
+            # Pool name provided, choose from global pool
+            chosen_value = random.choice(all_data_pools[pool_ref])
+        elif isinstance(pool_ref, list):
+            # Inline list provided, choose from it
+            chosen_value = random.choice(pool_ref)
+        else:
+            # Placeholder exists but pool reference is invalid/missing
+             chosen_value = f"<{placeholder}?>"
+        # Mark missing elements
+        format_dict[placeholder] = chosen_value
+
+    # Format the template
     try:
-        # Use dictionary for formatting replacements to handle missing keys gracefully
-        format_params = {}
-        if '{fragrance}' in desc and location.get('fragrance_options'):
-            format_params['fragrance'] = random.choice(location['fragrance_options'])
-        # Add more {key} and options here if needed
-
-        # Format the description, filling in only the keys provided
-        formatted_desc = desc.format(**format_params)
+        final_description = template.format(**format_dict)
     except KeyError as e:
-        # If formatting fails unexpectedly, print the raw description and an error
-        print(wrap_text(f"[DEBUG: Formatting Error - Missing key {e}]"))
-        formatted_desc = desc
+        print(wrap_text(f"[DEBUG: Template formatting error - key {e}]"))
+        final_description = template # Show raw template on error
 
-    print(wrap_text(formatted_desc))
+    print(wrap_text(final_description))
 
+    # --- Flavor Event Trigger ---
+    event_chance = location.get('event_chance', 0) # Get chance, default 0
+    if random.random() < event_chance:
+        # Get available events - either location specific or global pool
+        event_pool = location.get('possible_events', all_data_pools['events'])
+        if event_pool: # Ensure there are events to choose from
+            chosen_event = random.choice(event_pool)
+            time.sleep(random.uniform(0.8, 1.5)) # Pause before event
+            print(wrap_text(f"\nSuddenly: {chosen_event}"))
+            time.sleep(random.uniform(1.0, 1.8)) # Pause after event
 
 def display_prompt(location_id):
     """Displays available exits and actions."""
@@ -338,7 +418,7 @@ def display_prompt(location_id):
 
 
 # -----------------------------------------------------------------------------
-# Block 5: Main Game Loop
+# Block 6: Main Game Loop
 # (This runs the game turn by turn.)
 # -----------------------------------------------------------------------------
 
@@ -396,35 +476,80 @@ while game_active:
     # --- Handle Actions ---
     if raw_input in location.get('actions', {}):
         action_data = location['actions'][raw_input]
+        action_text_template = action_data.get('text', "You perform the action.") # Get action text template
+
+        # --- Format action text if it contains placeholders ---
+        action_format_dict = {}
+        action_pools_to_use = action_data.get('description_pools', {})
+        for placeholder, pool_ref in action_pools_to_use.items():
+            chosen_value = ""
+            if isinstance(pool_ref, str) and pool_ref in all_data_pools:
+                 chosen_value = random.choice(all_data_pools[pool_ref])
+            elif isinstance(pool_ref, list):
+                 chosen_value = random.choice(pool_ref)
+            else:
+                 chosen_value = f"<{placeholder}?>"
+            action_format_dict[placeholder] = chosen_value
+
+        try:
+            final_action_text = action_text_template.format(**action_format_dict)
+        except KeyError as e:
+            print(wrap_text(f"[DEBUG: Action text formatting error - key {e}]"))
+            final_action_text = action_text_template # Show raw template on error
 
         # Print action text with a pause
         print("") # Add a newline before action text
-        slow_print(action_data['text'], delay_min=1.2, delay_max=2.0)
+        slow_print(final_action_text, delay_min=1.2, delay_max=2.0)
 
-        # Optional short message after action text
-        if action_data.get('message'):
-            # Pause slightly before the message for emphasis
+        # --- Handle Dynamic Outcomes (Messages and Reveals) ---
+        final_message = None
+        reveals_for_this_action = None
+
+        if 'possible_reveals' in action_data:
+            # Choose one outcome from the list
+            chosen_outcome = random.choice(action_data['possible_reveals'])
+            final_message = chosen_outcome.get('message')
+            reveals_for_this_action = chosen_outcome.get('reveal') # Could be None
+
+        elif 'possible_messages' in action_data:
+             # Choose a message from the specified pool
+             pool_ref = action_data['possible_messages']
+             if isinstance(pool_ref, str) and pool_ref in all_data_pools:
+                 final_message = random.choice(all_data_pools[pool_ref])
+             elif isinstance(pool_ref, list):
+                 final_message = random.choice(pool_ref)
+             # Keep static reveal if it exists alongside dynamic message
+             reveals_for_this_action = action_data.get('reveal')
+
+        else:
+             # Fallback to static message and reveal
+             final_message = action_data.get('message')
+             reveals_for_this_action = action_data.get('reveal')
+
+        # --- Display Message & Handle Reveals ---
+        if final_message:
             time.sleep(random.uniform(0.8, 1.4))
-            print(wrap_text(f"-- {action_data['message']} --"))
-            time.sleep(random.uniform(1.0, 1.5)) # Pause after the message
+            print(wrap_text(f"-- {final_message} --"))
+            time.sleep(random.uniform(1.0, 1.5))
 
-        # Handle revealed exits
-        if action_data.get('reveal'):
-            newly_revealed = action_data['reveal']
-            # Store them for the *next* prompt display within this location visit
-            revealed_exits_this_turn.update(newly_revealed)
-            # print(f"[DEBUG] Revealed exits: {newly_revealed}") # Optional debug
+        if reveals_for_this_action:
+            revealed_exits_this_turn.update(reveals_for_this_action)
+            # print(f"[DEBUG] Revealed exits by action: {reveals_for_this_action}") # Optional debug
 
-        # Handle potential state changes (if/when implemented)
+        # Handle potential state changes (placeholder)
         if action_data.get('state_change'):
-            # Requires defining functions to modify game state, e.g.,
-            # state_changer = action_data['state_change']
-            # state_changer() # Call the function
-             pass # Placeholder for now
+            pass # state_changer = action_data['state_change']; state_changer()
 
-        # After action, loop might sometimes implicitly continue or prompt again?
-        # For now, action completes the turn. Re-display location and prompt below.
-        # No 'continue' here - let the loop proceed to re-display and prompt
+        # Action completes the turn, let loop restart to show updates
+        # No 'continue' needed here unless action should prevent re-display
+
+    # --- Add this check for completeness at the end of the loop, before it repeats ---
+    elif raw_input != "quit" and raw_input not in combined_exits:
+        # If the input wasn't quit, wasn't an exit, wasn't an action... it was likely invalid.
+        # The initial validation should catch most, but this is a fallback.
+        # The 'invalid command' message is printed near the input prompt logic.
+        # We just ensure the loop continues correctly.
+        pass
 
     # If input was processed (or if it fell through somehow), the loop will restart
     # causing the location to be re-displayed along with updated prompts.
