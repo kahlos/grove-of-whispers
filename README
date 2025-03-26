@@ -1,0 +1,7 @@
+# Grove of Whispers - A Mindful Text Based Adventure
+
+This is an experiment for a novice programmer utilising the latest LLM models to create a fully featured text based adventure to help teach the player to be more present and mindful.
+
+Can the LLM generate a fully featured experience, with no coding input and just directionality through prompting? We're using Gemini 2.5 Pro for the first version, mainly for the 1 million context length, which should enable good progressive evolution of the code base and story without forgetting what we're aiming for overall.
+
+We'll push a commit each time there's a new prompt to clearly show how the LLM has evolved the codebase over time. Later, we'll analyse the diffs with a separate LLM to reverse engineer how it was built.

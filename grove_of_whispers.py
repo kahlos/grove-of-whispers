@@ -1,32 +1,26 @@
 # -----------------------------------------------------------------------------
 # The Grove of Whispers - A Text-Based Mindfulness Adventure
 # -----------------------------------------------------------------------------
-
+# Block 1: Imports and Setup
+# -----------------------------------------------------------------------------
 import random
 import time
 import textwrap # For nicely formatting long description text
 
-# --- Game Data -------------------------------------------------------------
-# This dictionary holds all the information about the different locations
-# in the game.
-#
-# Structure:
-# 'location_id': {
-#     'description': "Text displayed when the player enters the location.",
-#     'dynamic_intro': ["A list of phrases, one chosen randomly each time.", "Adds flavour."], # Optional
-#     'exits': {'command': 'destination_id', ...}, # Regular movement
-#     'actions': { # Mindful actions and examining things
-#         'command': {
-#             'text': "Description of performing the action.",
-#             'reveal': {'command': 'destination_id', ...}, # Optional: New exits revealed by this action
-#             'state_change': function, # Optional: For more complex effects later
-#             'message': "Optional: A short message after the action text."
-#         }, ...
-#     }
-# }
-# -----------------------------------------------------------------------------
+# (Ensure these imports are at the top of your file)
 
+# -----------------------------------------------------------------------------
+# Block 2: Game Data
+# (This section holds the world map. It can be expanded significantly
+# or potentially moved to a separate data file later for complex games.)
+# -----------------------------------------------------------------------------
 locations = {
+    # --- Your existing locations dictionary goes here ---
+    # 'clearing': { ... },
+    # 'dark_woods_entrance': { ... },
+    # etc.
+    # ...
+# --- Add more locations here ---
     'clearing': {
         'description': "You stand at the edge of a sun-dappled clearing. Ancient stones covered in moss form a rough circle in the center. The air hums with the sound of bees, and the scent of wildflowers is {fragrance}. A familiar restlessness urges you to keep moving, to find the 'end'.",
         'dynamic_intro': [
@@ -99,7 +93,6 @@ locations = {
              }
         }
     },
-    # --- Add more locations here ---
     'deep_woods': {
         'description': "You are deeper in the woods. It's much darker. It's easy to feel lost. Paths seem to lead everywhere and nowhere. Maybe taking a moment to center yourself would help? The way back [S] is faintly visible.",
         'exits': {'s':'dark_woods_entrance'},
@@ -125,7 +118,6 @@ locations = {
                  'reveal': None,
                  'message': "Simple beauty."
              }
-             # Could add a 'drink' action etc.
          }
     },
     'ancient_tree': {
@@ -143,40 +135,106 @@ locations = {
                  'message': "Resting in presence."
              }
          }
-    },
+     },
      'quiet_stream': {
         'description': "Following the clearer path led you to a small, quiet stream flowing [E]. The water chuckles over stones. Sunlight filters through the canopy here, making it less gloomy. The path back [S] is clear.",
          'exits': {'s':'deep_woods', 'e':'stream_bend'}, # 'e' not implemented yet
          'actions': {
-            # Add listening, feeling water actions?
+             # Can add actions like Listen ('L'), Feel Water ('Feel water')
+             'l': {
+                 'text': "You pause and listen only to the stream. The soft gurgling, the occasional splash... it seems to wash away distracting thoughts.",
+                 'reveal': None,
+                 'message': "Lost in the sound."
+             },
+              'feel water': {
+                 'text': "You dip your fingers into the stream. The water is cool and flows smoothly over your skin. It feels refreshing and very real.",
+                 'reveal': None,
+                 'message': "A moment of clear sensation."
+             }
          }
      },
-     # --- Placeholder Endings ---
+     # --- Placeholder Endings/Future Areas ---
       'valley_view': {
-        'description': "The view is breathtaking. You feel a sense of peace wash over you. Maybe the journey wasn't about reaching an 'end', but about how you walked the path?\n\n[[ You have found a moment of clarity. Thank you for playing! Type 'quit' to exit. ]]",
+        'description': "The view is breathtaking. Miles of forest stretch out below, bathed in gentle sunlight. You feel a sense of expansive peace wash over you. Maybe the journey wasn't about *reaching* an 'end', but about *how* you walked the path?\n\n[[ You have found a moment of clarity. Thank you for playing! Type 'quit' to exit. ]]",
         'exits': {},
         'actions': {}
      },
       'stream_bend': {
-        'description': "The stream bends around a large rock formation here. The gentle sounds and flowing water bring a sense of calm focus. Perhaps true presence is found in these simple moments, wherever you are?\n\n[[ You have found a moment of flow. Thank you for playing! Type 'quit' to exit. ]]",
+        'description': "The stream bends around a large, mossy rock formation here. The gentle sounds and the constant, steady flow of water bring a sense of calm focus. Perhaps true presence is found not by searching, but by noticing these simple moments, wherever you are?\n\n[[ You have found a moment of flow. Thank you for playing! Type 'quit' to exit. ]]",
         'exits': {},
         'actions': {}
      },
-
-
 }
 
-# --- Game State Variables --------------------------------------------------
-current_location_id = 'clearing'
-game_active = True
-# Keep track of exits revealed by actions within the current location visit
-revealed_exits_this_turn = {}
+# -----------------------------------------------------------------------------
 
-# --- Helper Functions ------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# Block 3: Game State Variables
+# (These track the player's current situation.)
+# -----------------------------------------------------------------------------
+current_location_id = 'clearing' # Start the player in the clearing
+game_active = True
+revealed_exits_this_turn = {} # Track temporary reveals
+# --- Potential future state variables ---
+# calm_level = 0
+# discovered_insights = set()
+# -----------------------------------------------------------------------------
+
+
+# -----------------------------------------------------------------------------
+# Block 4: Helper Functions
+# (Functions for text formatting, displaying location info, prompts,
+# and the new game introduction.)
+# -----------------------------------------------------------------------------
 
 def wrap_text(text, width=80):
     """Wraps text for cleaner display."""
     return "\n".join(textwrap.wrap(text, width))
+
+def slow_print(text, delay_min=1.5, delay_max=2.5, width=80):
+    """Prints text wrapped and with a noticeable pause."""
+    print(wrap_text(text, width))
+    time.sleep(random.uniform(delay_min, delay_max))
+
+def introduction():
+    """Displays the introductory text and integrated tutorial."""
+    print("\n" * 2) # Add some space at the start
+    slow_print("...")
+    slow_print("Your mind feels... scattered. Like leaves caught in a whirlwind.")
+    slow_print("Thoughts race, plans tangle, memories flicker without focus.")
+    slow_print("You don't know how you got here, but...")
+    slow_print("...here you are.")
+    slow_print("Welcome to The Grove of Whispers.")
+
+    print("-" * 30) # Separator
+
+    slow_print("This place is... different. It seems to respond not just to your steps, but to your attention.")
+    slow_print("Moving around is simple. Type commands like 'N', 'S', 'E', 'W' when you see exits listed like [N] North.")
+    slow_print("But rushing forward might not always reveal the clearest path.")
+
+    print("-" * 30)
+
+    slow_print("Sometimes, the Grove invites you to pause. You might see options like:")
+    slow_print("`[B] Breathe` - A reminder to take a conscious breath. Try it now, even just one. In... and out. Notice how the Grove responds when you choose this in the game.")
+    time.sleep(1.0) # Slightly shorter pause for bullet points
+    slow_print("`[L] Listen` - Focus only on the sounds described. What details emerge when you truly pay attention?")
+    time.sleep(1.0)
+    slow_print("`[F] Feel` - Ground yourself in the sensations of touch described. The texture of moss, the coolness of water, the earth beneath your feet.")
+    time.sleep(1.0)
+    slow_print("`[S] Sit` or `[Stillness]` - Sometimes, simply being still and observing reveals more than movement.")
+    time.sleep(1.0)
+    slow_print("Other actions might appear too, like `[Examine]` or `[Touch Tree]`. Use the text in the brackets as your command.")
+
+    print("-" * 30)
+
+    slow_print("There is no 'winning' here in the usual sense. The journey *is* the purpose.")
+    slow_print("Pay attention. Be present. See what unfolds.")
+    slow_print("If you ever wish to leave the Grove, simply type 'Quit'.")
+
+    print("-" * 30)
+    input("Press Enter when you are ready to begin...")
+
 
 def display_location(location_id):
     """Gets location data, formats description, and prints it."""
@@ -185,75 +243,107 @@ def display_location(location_id):
 
     location = locations.get(location_id)
     if not location:
-        print("Error: Location not found!")
+        print(wrap_text("Error: Location not found! ID: " + location_id))
         return
 
     # Print dynamic intro phrase if available
     if location.get('dynamic_intro'):
+        # Use a slightly shorter, varied pause for dynamic intros
         print(wrap_text(f"\n{random.choice(location['dynamic_intro'])}"))
-        time.sleep(0.5) # Small pause for effect
+        time.sleep(random.uniform(0.6, 1.2))
 
     # Prepare and print main description, inserting random elements if needed
     desc = location['description']
-    if '{fragrance}' in desc and location.get('fragrance_options'):
-      fragrance = random.choice(location['fragrance_options'])
-      desc = desc.format(fragrance=fragrance)
-    # Add more random insertions here if needed using .format() or f-strings
+    try:
+        # Use dictionary for formatting replacements to handle missing keys gracefully
+        format_params = {}
+        if '{fragrance}' in desc and location.get('fragrance_options'):
+            format_params['fragrance'] = random.choice(location['fragrance_options'])
+        # Add more {key} and options here if needed
 
-    print(wrap_text(desc))
+        # Format the description, filling in only the keys provided
+        formatted_desc = desc.format(**format_params)
+    except KeyError as e:
+        # If formatting fails unexpectedly, print the raw description and an error
+        print(wrap_text(f"[DEBUG: Formatting Error - Missing key {e}]"))
+        formatted_desc = desc
+
+    print(wrap_text(formatted_desc))
+
 
 def display_prompt(location_id):
     """Displays available exits and actions."""
     location = locations.get(location_id)
     if not location:
-        return ""
+        return "", set() # Return empty set for valid inputs
 
     available_options = []
     valid_inputs = set()
 
-    # Regular Exits
+    # --- Combined Exits (Standard + Revealed) ---
     all_exits = location.get('exits', {}).copy()
     all_exits.update(revealed_exits_this_turn) # Add dynamically revealed exits
 
     if all_exits:
         exit_parts = []
-        for command, dest_id in all_exits.items():
-             # Basic direction hints
+        # Sort for consistent order (N, S, E, W, etc.)
+        sorted_exits = sorted(all_exits.keys(), key=lambda x: {'n':0, 's':1, 'e':2, 'w':3, 'u':4, 'd':5}.get(x.lower(), 99))
+
+        for command in sorted_exits:
+            dest_id = all_exits[command]
+            # Basic direction hints
             direction_hints = {'n':'North', 's':'South', 'e':'East', 'w':'West', 'u':'Up', 'd':'Down'}
             hint = direction_hints.get(command.lower())
-            if hint:
-                exit_parts.append(f"[{command.upper()}] {hint}")
-            else:
-                 exit_parts.append(f"[{command.upper()}]") # For non-standard exits if needed
-            valid_inputs.add(command.lower())
-        available_options.append("Exits: " + ", ".join(exit_parts))
+            display_command = command.upper() # Keep commands clear
 
-    # Mindful Actions
+            if hint:
+                exit_parts.append(f"[{display_command}] {hint}")
+            else:
+                 # For non-standard exits (like a specific door ID maybe)
+                 exit_parts.append(f"[{display_command}]")
+            valid_inputs.add(command.lower())
+
+        if exit_parts: # Only add the "Exits: " line if there are any
+             available_options.append("Exits: " + ", ".join(exit_parts))
+
+    # --- Mindful Actions & Interactions ---
     if location.get('actions'):
         action_parts = []
-        for command in location['actions'].keys():
-            # Simple commands are single letters, longer ones we keep as is
+        # Sort action commands alphabetically for consistency
+        sorted_actions = sorted(location['actions'].keys())
+
+        for command in sorted_actions:
+            # Display single letters Uppercase, multi-word capitalized
             command_display = command.upper() if len(command) == 1 else command.capitalize()
             action_parts.append(f"[{command_display}]")
-            valid_inputs.add(command.lower()) # Add full command string for multi-word actions
-        available_options.append("Actions: " + ", ".join(action_parts))
+            valid_inputs.add(command.lower()) # Add full command string
 
-    # Add standard quit command
+        if action_parts: # Only add the "Actions: " line if there are any
+            available_options.append("Actions: " + ", ".join(action_parts))
+
+    # Add standard quit command (always available)
     available_options.append("[Quit]")
     valid_inputs.add("quit")
 
-    print("\n" + "\n".join(available_options))
+    # Print the combined prompt lines
+    if available_options:
+        print("\n" + "\n".join(available_options))
+    else: # Should only happen in error cases or poorly defined locations
+        print("\n[Quit]") # Ensure quit is always an option
+
     return valid_inputs
 
 
-# --- Main Game Loop --------------------------------------------------------
+# -----------------------------------------------------------------------------
 
-print("\nWelcome to The Grove of Whispers")
-print("===============================")
-print("Type commands like 'N', 'S', 'E', 'W' to move, or mindful actions shown in [Brackets].")
-print("Type 'Quit' to exit the game.")
-print("-" * 30)
-time.sleep(1) # Pause before starting
+
+# -----------------------------------------------------------------------------
+# Block 5: Main Game Loop
+# (This runs the game turn by turn.)
+# -----------------------------------------------------------------------------
+
+# --- Start the Game ---
+introduction() # <<< NEW: Call the introduction function here
 
 while game_active:
     display_location(current_location_id)
@@ -264,11 +354,18 @@ while game_active:
 
     # Process input
     if not raw_input:
+        print(wrap_text("Silence... what do you choose to do?"))
+        time.sleep(1)
         continue # Ask again if they just press Enter
 
     # Check if input is valid
     if raw_input not in valid_commands:
-        print(wrap_text("That doesn't seem like a valid option right now. Try one of the options listed in [Brackets]."))
+        # Handle slightly differently if they typed part of a multi-word command
+        potential_matches = [cmd for cmd in valid_commands if isinstance(cmd, str) and cmd.startswith(raw_input)]
+        if len(potential_matches) == 1 and len(raw_input) > 1: # Simple auto-complete suggestion if unique prefix
+            print(wrap_text(f"Did you mean '{potential_matches[0].capitalize()}'? Try typing the full command."))
+        else:
+            print(wrap_text("That doesn't seem like a valid option right now. Look for choices in [Brackets]."))
         time.sleep(1)
         continue
 
@@ -276,50 +373,63 @@ while game_active:
     if raw_input == "quit":
         print("\nMay you carry the quiet of the Grove with you. Goodbye.")
         game_active = False
-        break
+        break # Exit the while loop
 
-    # Handle Movement (check revealed exits first, then standard)
-    location = locations[current_location_id]
+    # --- Handle Movement ---
+    location = locations[current_location_id] # Get current location data
     combined_exits = location.get('exits', {}).copy()
-    combined_exits.update(revealed_exits_this_turn)
+    combined_exits.update(revealed_exits_this_turn) # Include temporary reveals
 
     if raw_input in combined_exits:
         destination_id = combined_exits[raw_input]
         if destination_id in locations:
             current_location_id = destination_id
             print(f"\n...") # Indicate moving
-            time.sleep(random.uniform(0.8, 1.5)) # Short pause for travel feel
+            # Slightly longer, varied pause for travel simulation
+            time.sleep(random.uniform(1.0, 2.0))
         else:
-            print("Error: That path leads somewhere undefined!") # Should not happen if data is correct
-        continue # Skip action check
+            # This is a data error in the `locations` dictionary
+            print(wrap_text(f"Error: The path marked '{raw_input.upper()}' leads somewhere undefined ('{destination_id}')!"))
+            time.sleep(1.5)
+        continue # Move processed, start next turn loop
 
-    # Handle Actions
+    # --- Handle Actions ---
     if raw_input in location.get('actions', {}):
         action_data = location['actions'][raw_input]
 
-        # Print action text
-        print(wrap_text(f"\n{action_data['text']}"))
-        time.sleep(1.5) # Pause after mindful action text
+        # Print action text with a pause
+        print("") # Add a newline before action text
+        slow_print(action_data['text'], delay_min=1.2, delay_max=2.0)
 
-        # Optional short message
+        # Optional short message after action text
         if action_data.get('message'):
+            # Pause slightly before the message for emphasis
+            time.sleep(random.uniform(0.8, 1.4))
             print(wrap_text(f"-- {action_data['message']} --"))
-            time.sleep(1)
+            time.sleep(random.uniform(1.0, 1.5)) # Pause after the message
 
-        # Handle revealed exits (store them for the *next* prompt display)
+        # Handle revealed exits
         if action_data.get('reveal'):
-            # We update a temporary dict for the current location visit.
-            # This means the reveal only lasts while you are 'in scope'
-            # A more persistent reveal would modify the main locations dict
-            revealed_exits_this_turn.update(action_data['reveal'])
-            # print("[DEBUG] Revealed exits:", revealed_exits_this_turn) # Optional debug line
+            newly_revealed = action_data['reveal']
+            # Store them for the *next* prompt display within this location visit
+            revealed_exits_this_turn.update(newly_revealed)
+            # print(f"[DEBUG] Revealed exits: {newly_revealed}") # Optional debug
 
-        # Handle potential state changes (if implemented later)
+        # Handle potential state changes (if/when implemented)
         if action_data.get('state_change'):
-            # Call the state change function
-            action_data['state_change']() # Requires defining functions to modify game state
+            # Requires defining functions to modify game state, e.g.,
+            # state_changer = action_data['state_change']
+            # state_changer() # Call the function
+             pass # Placeholder for now
 
-        continue # Action done for this turn
+        # After action, loop might sometimes implicitly continue or prompt again?
+        # For now, action completes the turn. Re-display location and prompt below.
+        # No 'continue' here - let the loop proceed to re-display and prompt
 
-# --- End of Game -----------------------------------------------------------
-# (The loop condition 'game_active' becomes False)
+    # If input was processed (or if it fell through somehow), the loop will restart
+    # causing the location to be re-displayed along with updated prompts.
+
+# --- End of Game ---
+# (Code here is reached only when game_active becomes False)
+print("\nGame ended.")
+# -----------------------------------------------------------------------------
