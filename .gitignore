@@ -5,3 +5,6 @@ __pycache__/
 
 # MacOS DS Store
 .DS_Store
+
+# Python virtual environment
+py-env/

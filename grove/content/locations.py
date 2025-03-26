@@ -14,6 +14,7 @@ locations = {
             'scent': ['wildflowers', 'sun-warmed grass', 'scent_forest'], # Can mix strings and pool refs
             'sight': 'sight_forest'
         },
+        'audio_mood': 'clearing_calm',
         'dynamic_intro': ["A gentle breeze rustles the leaves above.", "Sunlight warms your face.", "The quiet feels vast and deep."],
         'event_chance': 0.25,
         'exits': {'n': 'dark_woods_entrance', 'e': 'gentle_slope_base'},
@@ -50,6 +51,7 @@ locations = {
              'adj_mood': 'adj_mysterious', 'scent': 'scent_forest',
              'adj_light': ['uncertain', 'dark', 'overgrown'], 'sight': 'sight_forest',
         },
+        'audio_mood': 'forest_neutral',
         'dynamic_intro': ["A twig snaps nearby.", "An owl hoots softly, unseen.", "A chill settles briefly."],
         'event_chance': 0.2,
         'exits': {'s': 'clearing', 'n': 'deep_woods'},
@@ -65,6 +67,7 @@ locations = {
     'deep_woods': {
         'description_template': "Deeper in the woods. It's much {adj_light}. It feels {adj_mood} and easy to get lost. Tangled paths twist. You notice {sight}. The way back [S] is faintly visible.",
          'description_pools': { 'adj_light': 'adj_light', 'adj_mood': 'adj_moody', 'sight': 'sight_forest' },
+         'audio_mood': 'woods_deep',
          'event_chance': 0.4,
          'exits': {'s': 'dark_woods_entrance'},
          'actions': {
@@ -94,6 +97,7 @@ locations = {
     'gentle_slope_base': {
         'description_template': "A wide, {adj} slope rises gently to the [E]ast. Small, {adj_nature} flowers dot the hillside under the {weather} sky. You can hear faint {sound} from further up. The clearing is back to the [W]est.",
         'description_pools': { 'adj': ['grassy', 'sunlit', 'gentle'], 'adj_nature': 'adj_nature', 'weather': ['warm sun', 'blue sky', 'partly cloudy sky'], 'sound': 'sound_water' },
+        'audio_mood': 'clearing_calm',
         'dynamic_intro': ["The warmth here feels inviting.", "A pleasant scent of grass and flowers hangs in the air."],
         'event_chance': 0.15,
         'exits': {'w': 'clearing', 'e': 'slope_top'},
@@ -112,6 +116,7 @@ locations = {
     'slope_top': {
         'description_template': "You reach the top of the slope. Before you lies a {adj_view} vista overlooking a valley [E]. A small, {adj_spring} spring bubbles from {rocks} here, feeding a stream that flows down. Path back down is [W]. You see {sight}.",
         'description_pools': { 'adj_view': ['beautiful', 'expansive', 'peaceful', 'hazy but vast'], 'adj_spring': ['clear', 'bubbling', 'quiet'], 'rocks': ['mossy rocks', 'smooth grey stones', 'a fissure in the earth'], 'sight': ['sight_general', 'sight_water'] },
+        'audio_mood': 'stream', 
          'dynamic_intro': ["A refreshing breeze blows here.", "The sound of the spring is calming."], 'event_chance': 0.1,
          'exits': {'w':'gentle_slope_base', 'e': 'valley_view'},
          'actions': {
@@ -127,6 +132,7 @@ locations = {
     'hidden_track_start': {
         'description_template': "Pushing aside a {bush_type} bush reveals a faint, narrow track heading [W]est into a {adj_density} part of the woods. It smells of {scent}. The clearing is back [E].",
         'description_pools': { 'bush_type': ['flowering', 'thorny', 'dense leafy'], 'adj_density': ['denser', 'quieter', 'more shadowed'], 'scent': ['scent_forest', 'crushed leaves']},
+        'audio_mood': 'forest_mysterious',
         'dynamic_intro': ["The air here feels still and expectant.", "It's noticeably quieter here than the clearing."], 'event_chance': 0.3,
         'exits': {'e': 'clearing', 'w': 'ancient_tree'},
         'actions': {
@@ -141,6 +147,7 @@ locations = {
     'ancient_tree': {
         'description_template': "The narrow track ends at the base of an enormous, ancient tree. Its bark is {bark_adj}, and branches reach high above. It feels {feeling} here. The track leads back [E]. {sight}",
         'description_pools': { 'bark_adj': ['deeply furrowed', 'rough and gnarled', 'covered in mosses and lichens'], 'feeling': ['wise and peaceful', 'solemn and quiet', 'powerfully still', 'timeless'], 'sight': 'sight_forest' },
+        'audio_mood': 'forest_mysterious',
          'dynamic_intro': ["Sunlight filters magically through the high canopy.", "The air is cool and still around the great trunk."], 'event_chance': 0.1,
          'exits': {'e':'hidden_track_start'},
          'actions': {
@@ -159,6 +166,7 @@ locations = {
      'quiet_stream': {
         'description_template': "You've found a small, {adj} stream flowing [E]. The water {sound} over {stones}. Sunlight filters through here, making it less gloomy. {sight}. The path back [S] is clear.",
         'description_pools': { 'adj': ['quiet', 'clear', 'peaceful', 'chuckling', 'meandering'], 'sound': 'sound_water', 'stones': ['smooth pebbles', 'mossy rocks', 'flat stones', 'sparkling sand'], 'sight': 'sight_water', },
+        'audio_mood': 'stream',
         'dynamic_intro': ["The sound of water is soothing here.", "It feels cooler near the stream."], 'event_chance': 0.15,
         'exits': {'s': 'deep_woods', 'e': 'stream_bend'},
         'actions': {
@@ -170,10 +178,12 @@ locations = {
      # --- Endings ---
      'valley_view': {
         'description': "The view from the cliff edge is breathtaking... [[ You have found a moment of clarity. Thank you for playing! Type 'quit' to exit. ]]",
+        'audio_mood': 'clearing_calm',
         'exits': {}, 'actions': {}
      },
      'stream_bend': {
         'description': "The stream bends here... [[ You have found a moment of flow. Thank you for playing! Type 'quit' to exit. ]]",
+        'audio_mood': 'stream',
         'exits': {}, 'actions': {}
      },
 }
@@ -185,4 +195,4 @@ if not isinstance(locations, dict):
 if 'clearing' not in locations:
     raise ValueError("Essential starting location 'clearing' is missing from locations data.")
 
-print("[locations.py] Loaded.")
+print("[locations.py] Loaded with audio moods.")

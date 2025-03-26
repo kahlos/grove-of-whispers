@@ -5,6 +5,7 @@
 # Standard library imports
 import sys
 import traceback
+import time
 from typing import Optional # For type hinting
 
 # Local package imports
@@ -27,21 +28,39 @@ except ImportError as e:
     # traceback.print_exc() # Uncomment for more detailed debug
     sys.exit(1) # Can't run without imports
 
+try:
+    from grove.audio.engine import AudioEngine # Import the engine class
+except ImportError:
+    print("Warning: Failed to import AudioEngine. Audio will be disabled.")
+    AudioEngine = None
+
 def main():
     """Initializes and runs the game."""
-    game_state: Optional[GameState] = None # Initialize for error scope
+    game_state: Optional[GameState] = None
+    audio_engine: Optional[AudioEngine] = None # Initialize audio engine variable
+
     try:
+        # --- Initialize Audio Engine ---
+        if AudioEngine:
+             print("Initializing audio engine...")
+             audio_engine = AudioEngine() # Create instance
+             audio_engine.start() # Start the audio thread
+             time.sleep(0.5) # Give thread a moment to start stream
+             # Could add a check here: if not audio_engine._running after start, disable audio?
+        else:
+            print("Audio is disabled.")
+
         # Display the introduction sequence
         introduction()
 
-        # Load the initial state (e.g., starting location)
+        # Load the initial state
         game_state = load_initial_state()
         if not game_state:
             print("Error: Could not load initial game state.")
-            return # Exit if state loading fails
+            return
 
-        # Start the main game loop
-        run_game(game_state)
+        # Start the main game loop, passing the audio engine
+        run_game(game_state, audio_engine) # Pass the instance here
 
     except KeyboardInterrupt:
         print("\n\nInterrupted journey. May you find peace.")
@@ -59,7 +78,11 @@ def main():
         print("The Grove fades... please report this error if possible.")
 
     finally:
-        # Code here runs whether loop finishes normally, breaks, or errors
+        # --- Ensure Audio Engine is stopped cleanly ---
+        if audio_engine and audio_engine._running:
+            print("Shutting down audio engine...")
+            audio_engine.stop()
+
         print("\nGame ended.")
 
 if __name__ == "__main__":
