@@ -1,35 +1,35 @@
 # grove/core/input_handler.py
-# Handles getting and validating player input.
+# v2: Uses conditional_sleep.
 
 from typing import Set, Optional
-from ..utils.text_utils import wrap_text
-import time
+from ..utils.text_utils import wrap_text, conditional_sleep # Import utility
+# import time # Not needed directly
+from .. import config # Import config
 
 def get_player_input() -> str:
-    """Gets input from the player, strips whitespace, and lowercases it."""
+    """Gets stripped, lowercased input."""
     return input("> ").strip().lower()
 
 def validate_input(raw_input: str, valid_commands: Set[str]) -> Optional[str]:
-    """Checks if the input is valid. Returns cleaned input or None."""
+    """Validates input. Returns cleaned command or None."""
     if not raw_input:
         print(wrap_text("Silence... what do you choose to do?"))
-        time.sleep(1)
-        return None # Indicate invalid input (empty)
+        conditional_sleep(0.5) # Short pause, even in debug? Maybe remove.
+        return None
 
     if raw_input in valid_commands:
-        return raw_input # Input is perfectly valid
+        # *** Debug Print for valid input ***
+        if config.DEBUG: print(f"[DEBUG Input] Valid command entered: '{raw_input}'")
+        return raw_input
 
-    # --- Add potential fuzzy matching or help ---
-    # Simple check for partial commands (e.g., 'examine' when 'examine flowers' is valid)
     potential_matches = [cmd for cmd in valid_commands if cmd.startswith(raw_input) and len(raw_input) >= 2]
     if len(potential_matches) == 1:
-         print(wrap_text(f"Did you mean '{potential_matches[0].capitalize()}'? Try typing the full command."))
-         time.sleep(1)
-         return None # Indicate invalid input
+         print(wrap_text(f"Did you mean '{potential_matches[0].capitalize()}'? Try the full command."))
+         conditional_sleep(1.0) # Conditional wait
+         return None
 
-    # --- Standard invalid command message ---
-    print(wrap_text("That doesn't seem like a valid option right now. Look for choices in [Brackets]."))
-    time.sleep(1)
-    return None # Indicate invalid input
+    print(wrap_text("That doesn't seem valid now. Use choices in [Brackets]."))
+    conditional_sleep(1.0) # Conditional wait
+    return None
 
-print("[input_handler.py] Loaded.")
+print("[input_handler.py] v2 Loaded (conditional sleeps).")
