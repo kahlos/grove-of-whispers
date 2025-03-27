@@ -1,5 +1,5 @@
 # grove/audio/engine.py
-# v34: FIX UnboundLocalError in stop() AGAIN. Keep click compromises.
+# v36: Fix UnboundLocalError in stop() AGAIN by ensuring 'thread' assigned first.
 
 try: import sounddevice as sd
 except ImportError: print("\nERROR: SD Missing\n"); sd = None
@@ -20,15 +20,20 @@ except ImportError as e: print(f"Synth import Err: {e}"); generate_sine_wave = N
 
 # --- Debugging Toggles ---
 ENABLE_LFOS = False # <<< *** KEEPING LFOS DISABLED ***
+ENABLE_BINAURAL = True # <<< *** KEEPING BINAURAL ENABLED ***
 
 # --- Constants ---
 DEFAULT_SAMPLE_RATE = 44100
 BUFFER_DURATION = 0.08
 MIN_BASE_FREQ = 50
 MAX_BASE_FREQ = 120
-CROSSFADE_DURATION = 0.7 # Keep longer duration
+CROSSFADE_DURATION = 0.4
 INITIAL_RAMP_DURATION = 0.2
-# No DC Blocker, No edge declicking/windowing
+# --- Binaural Beat Constants ---
+BINAURAL_CARRIER_HZ = 120.0
+BINAURAL_DIFFERENCE_HZ = 7.0
+BINAURAL_AMPLITUDE = 0.15
+# No DC Blocker / Declicking
 
 # --- Mood Definitions ---
 MOOD_PRESETS: Dict[str, List[Tuple[float, float, float, float]]] = {
@@ -48,11 +53,13 @@ def _calculate_equal_power_ramps(prog_start_norm: float, prog_end_norm: float, f
     return fade_in_ramp_eqp, fade_out_ramp_eqp
 
 class AudioEngine:
-    """Audio engine - No edge declicking/DCBlock, fixed shutdown scope."""
+    """Audio engine with Binaural Beats, fixed shutdown."""
 
     def __init__(self, sample_rate: int = DEFAULT_SAMPLE_RATE):
-        self._is_disabled = not (sd and np and generate_sine_wave and generate_lfo and _calculate_equal_power_ramps)
+        self._is_disabled = not (sd and np and generate_sine_wave and _calculate_equal_power_ramps)
+        if ENABLE_LFOS and 'generate_lfo' not in globals(): self._is_disabled = True # Only check LFO if needed
         if self._is_disabled: print("AudioEngine disabled."); return
+
         self.sample_rate = sample_rate; self.buffer_size = int(BUFFER_DURATION * self.sample_rate)
         self._stream: Optional[sd.OutputStream] = None; self._thread: Optional[threading.Thread] = None; self._running: bool = False
         self._parameter_queue: Queue = Queue(maxsize=5)
@@ -60,25 +67,27 @@ class AudioEngine:
         self._current_params: Dict[str, Any] = self._target_params.copy()
         self._current_osc_times: List[float] = []; self._current_lfo_times: List[float] = []
         self._previous_osc_times: List[float] = []; self._previous_lfo_times: List[float] = []
+        self._binaural_time_l: float = 0.0; self._binaural_time_r: float = 0.0
         self._crossfade_state: Dict[str, Any] = { 'active': False, 'progress_samples': 0, 'total_samples': int(CROSSFADE_DURATION * self.sample_rate) }
         self._previous_mood_key: Optional[str] = None
-        # No Declick/Hann state
         self._initial_ramp_samples_done = 0; self._initial_ramp_total_samples = max(1, int(INITIAL_RAMP_DURATION * self.sample_rate)); self._is_initial_ramp = True
-        # No DC Blocker state
+        # No DC Blocker or edge declicking needed
 
     def _initialize_time_list_pair(self, num_oscillators: int, osc_times_list: List, lfo_times_list: List):
-        # Keeps LFO phase unless size changes
         num_oscillators = max(0, num_oscillators)
         if num_oscillators != len(osc_times_list): osc_times_list[:] = [0.0] * num_oscillators
         current_lfo_len = len(lfo_times_list)
         if num_oscillators > current_lfo_len: lfo_times_list.extend([0.0] * (num_oscillators - current_lfo_len))
         elif num_oscillators < current_lfo_len: lfo_times_list[:] = lfo_times_list[:num_oscillators]
 
-    def _generate_audio_chunk(self,
+    def _reset_binaural_times(self):
+        self._binaural_time_l = 0.0; self._binaural_time_r = 0.0
+
+    def _generate_audio_chunk(self, # For MONO drone
         preset_data_list: List[Tuple[Union[float, int], ...]],
         base_freq: float, osc_times: List[float], lfo_times: List[float], frames: int
     ) -> Tuple[Optional[np.ndarray], bool]:
-        # Generator logic unchanged (v32 robust version)
+        # v35 unchanged internally
         if self._is_disabled or not np: return (np.zeros(frames, dtype=np.float32), False)
         num_oscillators = len(preset_data_list); buffer_duration_actual = frames / self.sample_rate
         if len(osc_times) != num_oscillators or len(lfo_times) != num_oscillators: return (np.zeros(frames, dtype=np.float32), False)
@@ -95,12 +104,12 @@ class AudioEngine:
                 freq_mult, base_amp, lfo_rate, lfo_depth = osc_params_tuple
                 if not all(isinstance(v,(int, float)) for v in osc_params_tuple): raise ValueError("Type")
                 osc_frequency = max(0.0, base_freq * freq_mult); current_base_amp = max(0.0, base_amp)
-                if ENABLE_LFOS:
+                if ENABLE_LFOS and generate_lfo is not None: # Check func available
                     current_lfo_rate = max(0.0, lfo_rate); current_lfo_depth = max(0.0, min(1.0, lfo_depth * MAX_LFO_DEPTH_SCALE))
                     effective_lfo_depth = current_base_amp * current_lfo_depth; effective_lfo_offset = current_base_amp * (1.0 - current_lfo_depth)
                     amp_modulator = generate_lfo(current_lfo_rate, buffer_duration_actual, self.sample_rate, depth=effective_lfo_depth, offset=effective_lfo_offset, start_time=lfo_start_time)
                     if amp_modulator is None: raise RuntimeError("LFO Fail")
-                # Time advances in finally
+                # Time advanced in finally
                 wave_chunk = None; amplitude_to_use = amp_modulator if (ENABLE_LFOS and amp_modulator is not None) else current_base_amp
                 if osc_frequency > 0 and generate_sine_wave is not None:
                     wave_chunk, computed_osc_end_time = generate_sine_wave(osc_frequency, buffer_duration_actual, self.sample_rate, amplitude=amplitude_to_use, start_time=osc_start_time)
@@ -109,20 +118,33 @@ class AudioEngine:
                 if current_osc_generated: total_wave[:min(frames, wave_chunk.shape[0])] += wave_chunk[:min(frames, wave_chunk.shape[0])]
             except (IndexError, ValueError, RuntimeError) as e: generation_successful_overall = False;
             except Exception as e: generation_successful_overall = False; print(f"[UNEX GEN {i}]: {e}");
-            finally: # Robust Time Update
+            finally:
                 if i < len(osc_times): osc_times[i] = osc_end_time
                 if i < len(lfo_times): lfo_times[i] = lfo_end_time
         if not generation_successful_overall: return (np.zeros(frames, dtype=np.float32), False)
         return total_wave, True
 
+    def _generate_binaural_beats(self, frames: int) -> Optional[Tuple[np.ndarray, np.ndarray]]:
+        """ Generates L/R channels for binaural beats, advancing state. """
+        # v35 unchanged internally
+        if self._is_disabled or not np or not generate_sine_wave or not ENABLE_BINAURAL: return None
+        buffer_duration_actual = frames / self.sample_rate; freq_l = BINAURAL_CARRIER_HZ; freq_r = freq_l + BINAURAL_DIFFERENCE_HZ; amp = BINAURAL_AMPLITUDE
+        wave_l_chunk, end_time_l = generate_sine_wave(freq_l, buffer_duration_actual, self.sample_rate, amplitude=amp, start_time=self._binaural_time_l); self._binaural_time_l = end_time_l
+        wave_r_chunk, end_time_r = generate_sine_wave(freq_r, buffer_duration_actual, self.sample_rate, amplitude=amp, start_time=self._binaural_time_r); self._binaural_time_r = end_time_r
+        if wave_l_chunk is not None and wave_r_chunk is not None:
+             if wave_l_chunk.shape[0] != frames: wave_l_chunk = np.pad(wave_l_chunk, (0, frames - wave_l_chunk.shape[0])) if wave_l_chunk.shape[0] < frames else wave_l_chunk[:frames]
+             if wave_r_chunk.shape[0] != frames: wave_r_chunk = np.pad(wave_r_chunk, (0, frames - wave_r_chunk.shape[0])) if wave_r_chunk.shape[0] < frames else wave_r_chunk[:frames]
+             return wave_l_chunk, wave_r_chunk
+        else: print("[WARN] Binaural gen failed."); return None
+
 
     def _audio_callback(self, outdata: np.ndarray, frames: int, time_info, status):
-        """Callback: EqPower crossfade, Initial ramp, NO declicking."""
+        """Callback: Stereo Mix = [Drone(L/R) + Binaural(L/R)]. Handles XFade."""
         if self._is_disabled or not np: outdata.fill(0); return
         if status: print(f"Audio Status: {status}", flush=True)
 
         try:
-            # Queue / Crossfade Setup / Instant Param Update (Same as v32)
+            # Queue / Crossfade Setup / Param Update (Same as v35)
             mood_change_request_mood: Optional[str] = None; new_target_params: Dict[str, Any] = {}
             while not self._parameter_queue.empty():
                 try: new_params = self._parameter_queue.get_nowait(); self._parameter_queue.task_done()
@@ -136,16 +158,17 @@ class AudioEngine:
                  self._target_params['mood'] = mood_change_request_mood
                  print(f"[DEBUG] CF Trig: '{self._previous_mood_key}'({len(self._previous_osc_times)}o) -> '{self._target_params['mood']}'")
                  target_preset = MOOD_PRESETS.get(self._target_params['mood'], MOOD_PRESETS['default'])
-                 self._initialize_time_list_pair(len(target_preset), self._current_osc_times, self._current_lfo_times) # Resizes CURRENT lists
+                 self._initialize_time_list_pair(len(target_preset), self._current_osc_times, self._current_lfo_times)
                  print(f"[DEBUG] -> Target:{len(target_preset)}o, Cur times:{len(self._current_osc_times)}")
                  self._crossfade_state = {'active': True, 'progress_samples': 0, 'total_samples': max(1, int(CROSSFADE_DURATION * self.sample_rate))}
+            # Update current params
             self._current_params['base_freq'] = self._target_params['base_freq']; self._current_params['master_volume'] = self._target_params['master_volume']; self._current_params['mood'] = self._target_params['mood']
-            callback_base_freq = float(self._current_params.get('base_freq', 65.41))
+            callback_base_freq = float(self._current_params['base_freq'])
 
-            # Generate Audio (Separate Gen + EqPower Ramps - logic same)
-            final_wave = np.zeros(frames, dtype=np.float32); buffer_generated = False
+            # --- Generate MONO Drone Layer (Handles Crossfade Internally) ---
+            mono_drone_wave = np.zeros(frames, dtype=np.float32); drone_generated = False
             if self._crossfade_state['active'] and _calculate_equal_power_ramps is not None:
-                # Crossfade generation (v32)
+                # Crossfade logic using EqPower ramps (Same as v35)
                 prog_start, total_samples = self._crossfade_state['progress_samples'], self._crossfade_state['total_samples']; prog_end = prog_start + frames
                 p_start_norm = max(0.0, min(1.0, prog_start/total_samples)); p_end_norm = max(0.0, min(1.0, prog_end/total_samples))
                 fade_in_ramp, fade_out_ramp = _calculate_equal_power_ramps(p_start_norm, p_end_norm, frames)
@@ -154,110 +177,122 @@ class AudioEngine:
                      prev_preset = MOOD_PRESETS.get(self._previous_mood_key, []);
                      if len(self._previous_osc_times) == len(prev_preset):
                          prev_wave, success = self._generate_audio_chunk(prev_preset, callback_base_freq, self._previous_osc_times, self._previous_lfo_times, frames)
-                         if success and prev_wave is not None: final_wave_prev = prev_wave * fade_out_ramp; buffer_generated = True
+                         if success and prev_wave is not None: final_wave_prev = prev_wave * fade_out_ramp; drone_generated = True
                 target_preset = MOOD_PRESETS.get(self._target_params['mood'], MOOD_PRESETS['default'])
                 if len(self._current_osc_times) == len(target_preset):
                     if fade_in_ramp is not None:
                         curr_wave, success = self._generate_audio_chunk(target_preset, callback_base_freq, self._current_osc_times, self._current_lfo_times, frames)
-                        if success and curr_wave is not None: final_wave_curr = curr_wave * fade_in_ramp; buffer_generated = True
-                final_wave = final_wave_prev + final_wave_curr # Combine
-                # Update State
+                        if success and curr_wave is not None: final_wave_curr = curr_wave * fade_in_ramp; drone_generated = True
+                mono_drone_wave = final_wave_prev + final_wave_curr # Combined Drone
                 self._crossfade_state['progress_samples'] = prog_end
-                if self._crossfade_state['progress_samples'] >= total_samples:
-                    self._crossfade_state['active'] = False; self._previous_mood_key = None; print("[DEBUG] CF Complete.")
-            else: # Normal Playback
+                if self._crossfade_state['progress_samples'] >= total_samples: self._crossfade_state['active'] = False; self._previous_mood_key = None; print("[DEBUG] CF Complete.")
+            else: # Normal Playback Drone
                 current_preset = MOOD_PRESETS.get(self._target_params['mood'], MOOD_PRESETS['default'])
                 if len(self._current_osc_times) != len(current_preset): self._initialize_time_list_pair(len(current_preset), self._current_osc_times, self._current_lfo_times)
-                final_wave, success = self._generate_audio_chunk(current_preset, callback_base_freq, self._current_osc_times, self._current_lfo_times, frames)
-                if success: buffer_generated = True;
+                mono_drone_wave, success = self._generate_audio_chunk(current_preset, callback_base_freq, self._current_osc_times, self._current_lfo_times, frames)
+                if success: drone_generated = True;
                 if self._previous_mood_key is not None: self._previous_mood_key = None
 
-            # --- Post-processing ---
-            if buffer_generated:
+
+            # --- Generate STEREO Binaural ---
+            binaural_stereo_pair = self._generate_binaural_beats(frames)
+
+
+            # --- Combine to STEREO Output Buffer ---
+            stereo_output = np.zeros((frames, 2), dtype=np.float32)
+            buffer_contains_sound = False
+            if drone_generated:
+                stereo_output[:, 0] += mono_drone_wave; stereo_output[:, 1] += mono_drone_wave; buffer_contains_sound = True
+            if binaural_stereo_pair is not None:
+                stereo_output[:, 0] += binaural_stereo_pair[0] # Add Left
+                stereo_output[:, 1] += binaural_stereo_pair[1] # Add Right
+                buffer_contains_sound = True
+
+
+            # --- Post-processing (STEREO) ---
+            if buffer_contains_sound:
                 master_vol = self._current_params.get('master_volume', 0.6)
-                # Initial Ramp
+                # Initial Ramp (Applied to stereo)
                 if self._is_initial_ramp:
                     ramp_start, ramp_end, total_ramp = self._initial_ramp_samples_done, self._initial_ramp_samples_done + frames, self._initial_ramp_total_samples
                     start_gain = max(0.0, min(1.0, ramp_start / total_ramp)) if total_ramp > 0 else 1.0; end_gain = max(0.0, min(1.0, ramp_end / total_ramp)) if total_ramp > 0 else 1.0
-                    if start_gain < 1.0 or end_gain < 1.0: final_wave *= np.linspace(start_gain, end_gain, frames, dtype=np.float32)
+                    if start_gain < 1.0 or end_gain < 1.0:
+                         initial_gain_ramp = np.linspace(start_gain, end_gain, frames, dtype=np.float32)[:, np.newaxis] # Broadcast shape (frames, 1)
+                         stereo_output *= initial_gain_ramp # Apply ramp
                     self._initial_ramp_samples_done = ramp_end
                     if self._initial_ramp_samples_done >= total_ramp: self._is_initial_ramp = False;
-                # Master Volume
-                final_wave *= master_vol
-                # NO DC Blocker / NO Declicking ramps applied here
+
+                # Master Vol
+                stereo_output *= master_vol
+                # NO DC Blocker, NO Declicking Ramps
+
                 # Clip LAST
-                np.clip(final_wave, -1.0, 1.0, out=final_wave)
-                # Frame Clamp Safety Check
-                if final_wave.shape[0] != frames:
-                    if final_wave.shape[0] > frames: final_wave = final_wave[:frames]
-                    else: final_wave = np.pad(final_wave, (0, frames - final_wave.shape[0]))
-                outdata[:] = final_wave.reshape(-1, 1)
-            else: outdata.fill(0)
+                np.clip(stereo_output, -1.0, 1.0, out=stereo_output)
+                # Frame Clamp (Should not be necessary if shapes correct)
+                if stereo_output.shape[0] != frames: stereo_output = stereo_output[:frames, :] if stereo_output.shape[0] > frames else np.pad(stereo_output, ((0, frames - stereo_output.shape[0]),(0,0)))
+                outdata[:] = stereo_output # Assign final stereo data
+            else:
+                outdata.fill(0) # Silence
+
 
         except Exception as e: print(f"---!! Crit CB Err !!---\n{type(e).__name__}: {e}", file=sys.stderr, flush=True); traceback.print_exc(file=sys.stderr); sys.stderr.flush(); outdata.fill(0)
 
 
-    # --- _run, update_parameters, start Methods ---
+    # --- _run, update_parameters, start ---
+    # Unchanged
     def _run(self):
-        # Unchanged v32
         if self._is_disabled: return
         stream_context = None
         try:
-            stream_context = sd.OutputStream( samplerate=self.sample_rate, blocksize=self.buffer_size, channels=1, dtype='float32', callback=self._audio_callback, latency='low')
+            stream_context = sd.OutputStream( samplerate=self.sample_rate, blocksize=self.buffer_size, channels=2, dtype='float32', callback=self._audio_callback, latency='low') # Stereo
             with stream_context as stream:
-                print(f"Audio stream active ({self.sample_rate} Hz, {self.buffer_size} frames, {stream.latency:.4f}s latency)")
+                print(f"Audio stream active (STEREO, {self.sample_rate} Hz, {self.buffer_size} frames, {stream.latency:.4f}s latency)")
                 while self._running: time.sleep(BUFFER_DURATION)
         except sd.PortAudioError as pae: print(f"PortAudio Error: {pae}")
+        except ValueError as ve: print(f"Error stream setup (ValueError): {ve}"); print("Check Stereo support.")
         except Exception as e: print(f"Audio thread error: {e}"); traceback.print_exc()
         finally: self._running = False; self._stream = None; print("Audio thread _run method finished.")
 
     def update_parameters(self, params: Dict[str, Any]):
-        # Unchanged v32
         if self._is_disabled: return
         self._parameter_queue.put(params)
 
     def start(self):
-        # Unchanged v32
         if self._is_disabled: print("Cannot start: Disabled."); return
         if self._running: print("Already running."); return
-        try: sd.check_output_settings(samplerate=self.sample_rate, channels=1, dtype='float32')
-        except Exception as e: print(f"Audio settings check FAIL: {e}. Check device."); return
+        try: sd.check_output_settings(samplerate=self.sample_rate, channels=2, dtype='float32') # Stereo Check
+        except Exception as e: print(f"Audio settings check FAIL (Stereo?): {e}. Check device."); return
+
         self._running = True; self._is_initial_ramp = True; self._initial_ramp_samples_done = 0
-        # No DC Blocker reset
+        self._reset_binaural_times() # Reset binaural phase
         preset = MOOD_PRESETS.get(self._target_params['mood'], MOOD_PRESETS['default'])
-        self._initialize_time_list_pair(len(preset), self._current_osc_times, self._current_lfo_times)
-        # No declick/hann init
+        self._initialize_time_list_pair(len(preset), self._current_osc_times, self._current_lfo_times) # Drone times
         self._thread = threading.Thread(target=self._run, daemon=False, name="AudioEngineThread")
         self._thread.start()
         print("Audio engine thread start requested.")
 
-    # *** CORRECTED STOP METHOD ***
+    # --- stop Method ---
     def stop(self):
-        """Simplified shutdown: Signal loop and join thread."""
-        if self._is_disabled: return
-        # ** FIX: Assign thread to local var *before* checking if running **
+        """Simplified shutdown: Signal loop and join thread. Correct scope."""
+        # *** FIX: Assign thread BEFORE conditional return ***
         thread = self._thread
-        # Now checks are safe
-        if not self._running and not (thread and thread.is_alive()):
-            # print("Engine stop: Not running.") # Reduce noise
-            return
+        # Now safe to check conditions
+        if self._is_disabled: return
+        if not self._running and not (thread and thread.is_alive()): return
 
         print("Stop requested...");
         self._running = False # Signal loop
 
-        # Check the local 'thread' variable assigned at the start
-        if thread and thread.is_alive():
+        if thread and thread.is_alive(): # Check if thread exists and is running
             print(f"Waiting for '{thread.name}' join...");
-            thread.join(timeout=1.5) # Wait for loop/context manager to finish
-            if thread.is_alive():
-                print("[WARN] Audio thread join timed out!")
-            else:
-                print("Audio thread joined.")
-        # else: print("Audio thread already finished or none existed.")
+            thread.join(timeout=1.5) # Wait for thread to finish
+            if thread.is_alive(): print("[WARN] Audio thread join timed out!")
+            else: print("Audio thread joined.")
 
-        # Clear instance refs after checking/joining
-        self._thread = None; self._stream = None;
+        # Clear references AFTER attempting join
+        self._thread = None
+        self._stream = None # Context manager should have closed it in _run's finally block
         print("Audio engine stop sequence complete.")
 
 
-print("[engine.py] Corrected shutdown scope. Using config from v31 (No DCB/Declick).")
+print("[engine.py] Shutdown scope fixed. Binaural beats active. No declick/DCB/LFO.")
