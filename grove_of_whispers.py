@@ -1,87 +1,84 @@
 #!/usr/bin/env python3
-# main.py / grove_of_whispers.py
-# Main entry point for The Grove of Whispers.
+# grove_of_whispers.py
+# Main entry point for The Grove of Whispers. Handles args and runs game loop.
 
 # Standard library imports
 import sys
 import traceback
-import time
-from typing import Optional # For type hinting
+import time # Keep time import for shutdown safety if needed
+import argparse # <<< Added for command-line arguments
 
 # Local package imports
 try:
-    # Explicitly add project root to sys.path if running script directly
-    # and imports fail. Usually better to run as a module (python -m grove...)
-    # or install the package. For simplicity now, this might help.
-    # import os
-    # project_root = os.path.dirname(os.path.abspath(__file__))
-    # sys.path.insert(0, project_root)
-
     from grove.core.game_loop import run_game
     from grove.core.game_state import GameState, load_initial_state
     from grove.presentation.intro import introduction
+    from grove.audio.engine import AudioEngine
+    from grove import config # <<< Added config import
 except ImportError as e:
     print("Critical Error: Failed to import required game components.")
     print(f"Ensure all package directories (__init__.py) and files exist.")
     print(f"Import error details: {e}")
-    # Print traceback to see where the import failed
-    # traceback.print_exc() # Uncomment for more detailed debug
-    sys.exit(1) # Can't run without imports
-
-try:
-    from grove.audio.engine import AudioEngine # Import the engine class
-except ImportError:
-    print("Warning: Failed to import AudioEngine. Audio will be disabled.")
-    AudioEngine = None
+    sys.exit(1)
 
 def main():
-    """Initializes and runs the game."""
+    """Parses arguments, initializes, and runs the game."""
+    # --- Argument Parsing ---
+    parser = argparse.ArgumentParser(description="The Grove of Whispers - A Text-Based Mindfulness Adventure")
+    parser.add_argument("-d", "--debug", action="store_true", help="Enable debug output messages.")
+    args = parser.parse_args()
+
+    # --- Set Global Debug Config ---
+    config.DEBUG = args.debug
+    if config.DEBUG:
+        print("--- DEBUG MODE ENABLED ---")
+
+    # --- Initialization ---
     game_state: Optional[GameState] = None
-    audio_engine: Optional[AudioEngine] = None # Initialize audio engine variable
+    audio_engine: Optional[AudioEngine] = None
 
     try:
-        # --- Initialize Audio Engine ---
-        if AudioEngine:
-             print("Initializing audio engine...")
-             audio_engine = AudioEngine() # Create instance
-             audio_engine.start() # Start the audio thread
-             time.sleep(0.5) # Give thread a moment to start stream
-             # Could add a check here: if not audio_engine._running after start, disable audio?
+        # Initialize Audio Engine (Only create if not disabled internally)
+        if hasattr(AudioEngine, '__init__') and not getattr(AudioEngine(0), '_is_disabled', True): # Check if not disabled
+            print("Initializing audio engine...")
+            audio_engine = AudioEngine()
+            audio_engine.start()
+            # time.sleep(0.5) # Less necessary now shutdown is better? Keep for safety.
         else:
-            print("Audio is disabled.")
+            print("Audio is disabled (check dependencies or engine code).")
 
-        # Display the introduction sequence
+        # Display Introduction
         introduction()
 
-        # Load the initial state
+        # Load Game State
         game_state = load_initial_state()
         if not game_state:
             print("Error: Could not load initial game state.")
+            # Cleanly stop audio if it started
+            if audio_engine and audio_engine._running:
+                 audio_engine.stop()
             return
 
-        # Start the main game loop, passing the audio engine
-        run_game(game_state, audio_engine) # Pass the instance here
+        # --- Run Game ---
+        run_game(game_state, audio_engine)
 
     except KeyboardInterrupt:
         print("\n\nInterrupted journey. May you find peace.")
     except Exception as e:
         print("\n\n" + "="*20 + " An Unexpected Error Occurred " + "="*20)
-        if game_state:
-             print(f"Last known Location ID: {game_state.current_location_id}")
-        else:
-            print("Error occurred before game state was fully initialized.")
-        print(f"Error Type: {type(e).__name__}")
-        print(f"Error Details: {e}")
-        print("\nTraceback:")
-        traceback.print_exc()
+        if game_state: print(f"Last known Location ID: {game_state.current_location_id}")
+        else: print("Error occurred before game state was fully initialized.")
+        print(f"Error Type: {type(e).__name__}"); print(f"Error Details: {e}")
+        print("\nTraceback:"); traceback.print_exc()
         print("\n" + "="*60)
         print("The Grove fades... please report this error if possible.")
 
     finally:
-        # --- Ensure Audio Engine is stopped cleanly ---
-        if audio_engine and audio_engine._running:
+        # --- Clean Shutdown ---
+        if audio_engine and getattr(audio_engine, '_running', False): # Check if running
             print("Shutting down audio engine...")
-            audio_engine.stop()
+            audio_engine.stop() # Call the corrected stop method
+        # else: print("Audio engine not active or already stopped.") # Reduce noise
 
         print("\nGame ended.")
 
